@@ -357,16 +357,26 @@
     <script type="module">
         // Import Firebase functions
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Initialization ---
-        // These global variables are provided by the environment.
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // This is the configuration for YOUR Firebase project.
+        // It's essential for connecting the app to your database when deployed.
+        const firebaseConfig = {
+          apiKey: "AIzaSyDFB0kfef0sCNNlk9MMb_iZbJ4OuL65uZ0",
+          authDomain: "students-6aeaf.firebaseapp.com",
+          projectId: "students-6aeaf",
+          storageBucket: "students-6aeaf.firebasestorage.app",
+          messagingSenderId: "426236093458",
+          appId: "1:426236093458:web:86cdefdab78637173664cb",
+          measurementId: "G-XFMENW1N3B"
+        };
 
-        // Initialize Firebase
+        // Initialize Firebase and its services
         const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
@@ -627,12 +637,11 @@
 
         // --- Data Interaction Functions ---
         async function sendDataToGoogleSheet(data) {
-            // !!! IMPORTANT !!! This URL has been updated with the one you provided.
             const googleScriptUrl = 'https://script.google.com/macros/s/AKfycbxusXYk2wISGmhKvCr4YX3BIuEZ5f-QqDSGSP-5AFqp5CPOaj1mBNpmBM4XVGCdYXHf/exec';
             try {
                 await fetch(googleScriptUrl, {
                     method: 'POST',
-                    mode: 'no-cors', // 'no-cors' is often required for simple App Script web apps
+                    mode: 'no-cors',
                     cache: 'no-cache',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
@@ -661,7 +670,7 @@
 
         async function openEditModal(studentId) {
             if (!userId) return;
-            const docRef = doc(db, `/artifacts/${appId}/users/${userId}/students`, studentId);
+            const docRef = doc(db, `users/${userId}/students`, studentId);
             try {
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
@@ -677,7 +686,6 @@
                     document.getElementById('editGpa').value = student.gpa || '';
                     document.getElementById('editContact').value = student.contact;
                     
-                    // Populate and set POB address
                     populateSelect(editPobProvinceSelect, Object.keys(cambodiaData), 'ជ្រើសរើសខេត្ត/រាជធានី', student.pobProvince);
                     if (student.pobProvince) {
                         const districts = Object.keys(cambodiaData[student.pobProvince]);
@@ -695,7 +703,6 @@
                         editPobVillageSelect.disabled = false;
                     }
 
-                    // Populate and set Current address
                     populateSelect(editCurrentProvinceSelect, Object.keys(cambodiaData), 'ជ្រើសរើសខេត្ត/រាជធានី', student.currentProvince);
                     if (student.currentProvince) {
                         const districts = Object.keys(cambodiaData[student.currentProvince]);
@@ -758,7 +765,7 @@
             e.preventDefault();
             if (!userId) return;
             const studentId = document.getElementById('edit-id').value;
-            const docRef = doc(db, `/artifacts/${appId}/users/${userId}/students`, studentId);
+            const docRef = doc(db, `users/${userId}/students`, studentId);
             
             const formData = new FormData(editForm);
             const updatedData = Object.fromEntries(formData.entries());
@@ -776,7 +783,7 @@
 
         async function handleDeleteStudent() {
             if (!studentToDeleteId || !userId) return;
-            const docRef = doc(db, `/artifacts/${appId}/users/${userId}/students`, studentToDeleteId);
+            const docRef = doc(db, `users/${userId}/students`, studentToDeleteId);
             try {
                 const docSnap = await getDoc(docRef);
                 const deletedData = docSnap.exists() ? docSnap.data() : { studentName: 'Unknown' };
@@ -844,14 +851,14 @@
             if (unsubscribeStudents) unsubscribeStudents();
             if (unsubscribeHistory) unsubscribeHistory();
 
-            studentsCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/students`);
+            studentsCollectionRef = collection(db, `users/${userId}/students`);
             const studentsQuery = query(studentsCollectionRef);
             unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => renderStudents(snapshot.docs), (error) => {
                 console.error("Error fetching students:", error);
                 studentList.innerHTML = `<tr><td colspan="13" class="text-center p-8 text-red-500">Error loading data. Check console.</td></tr>`;
             });
 
-            historyCollectionRef = collection(db, `/artifacts/${appId}/users/${userId}/registration_history`);
+            historyCollectionRef = collection(db, `users/${userId}/registration_history`);
             const historyQuery = query(historyCollectionRef);
             unsubscribeHistory = onSnapshot(historyQuery, (snapshot) => renderHistory(snapshot.docs), (error) => {
                 console.error("Error fetching history:", error);
@@ -883,17 +890,12 @@
                     console.log("Authenticated with userId:", userId);
                     setupFirestoreListeners();
                 } else {
-                    console.log("User not authenticated. Attempting sign-in...");
+                    console.log("User not authenticated. Attempting anonymous sign-in...");
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                             console.log("Signed in with custom token.");
-                        } else {
-                            await signInAnonymously(auth);
-                            console.log("Signed in anonymously.");
-                        }
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously.");
                     } catch (error) {
-                         console.error("Authentication failed:", error);
+                         console.error("Anonymous sign-in failed:", error);
                          document.body.innerHTML = `<div class="p-8 text-center text-red-600"><h1>Authentication Failed</h1><p>Could not connect to the database. Please refresh the page.</p><p>${error.message}</p></div>`;
                     }
                 }
